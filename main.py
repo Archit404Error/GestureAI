@@ -14,6 +14,7 @@ GestureAction = namedtuple("GestureAction", "time handler pred_classes")
 
 action_queue: deque[GestureAction] = deque([])
 gesture_handlers = {"fist": volume_handler}
+prev_gesture_left, prev_gesture_right = "", ""
 GESTURE_TIMEOUT = 1500
 
 mp_hands = mp.solutions.hands
@@ -50,10 +51,19 @@ while cv2.waitKey(1) != ord("q"):
                 pred_classes.append(classes[np.argmax(preds)])
 
             for req, handler in gesture_handlers.items():
-                if req in pred_classes:
+                if (
+                    req in pred_classes
+                    and prev_gesture_left != req
+                    and prev_gesture_right != req
+                ):
                     action_queue.append(
                         GestureAction(datetime.now(), handler, pred_classes)
                     )
+
+            if len(pred_classes) < 2:
+                pred_classes.append("")
+
+            prev_gesture_left, prev_gesture_right = pred_classes
 
             while action_queue and (
                 (datetime.now() - action_queue[0].time) / timedelta(milliseconds=1)
