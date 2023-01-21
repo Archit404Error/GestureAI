@@ -7,6 +7,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import load_model
 
+from constants import GESTURE_TIMEOUT, HAND_POINTS
 from volume_utils import volume_handler
 
 GestureAction = namedtuple("GestureAction", "time handler pred_classes")
@@ -14,8 +15,7 @@ GestureAction = namedtuple("GestureAction", "time handler pred_classes")
 
 action_queue: deque[GestureAction] = deque([])
 gesture_handlers = {"fist": volume_handler}
-prev_gesture_left, prev_gesture_right = "", ""
-GESTURE_TIMEOUT = 1500
+last_gestures = []
 
 mp_hands = mp.solutions.hands
 hand_model = mp_hands.Hands(max_num_hands=2, min_detection_confidence=0.7)
@@ -51,28 +51,26 @@ while cv2.waitKey(1) != ord("q"):
                 pred_classes.append(classes[np.argmax(preds)])
 
             for req, handler in gesture_handlers.items():
-                if (
-                    req in pred_classes
-                    and prev_gesture_left != req
-                    and prev_gesture_right != req
-                ):
+                if req in pred_classes and req not in last_gestures:
                     action_queue.append(
                         GestureAction(datetime.now(), handler, pred_classes)
                     )
 
-            if len(pred_classes) < 2:
-                pred_classes.append("")
-
-            prev_gesture_left, prev_gesture_right = pred_classes
+            last_gestures = pred_classes
 
             while action_queue and (
                 (datetime.now() - action_queue[0].time) / timedelta(milliseconds=1)
                 > GESTURE_TIMEOUT
             ):
                 cur_event = action_queue.popleft()
-                cur_event.handler(
-                    cur_event.pred_classes, landmarks[:21], landmarks[21:]
-                )
+                if len(landmarks) == 2 * HAND_POINTS:
+                    cur_event.handler(
+                        cur_event.pred_classes,
+                        landmarks[:HAND_POINTS],
+                        landmarks[HAND_POINTS:],
+                    )
+                else:
+                    cur_event.handler(cur_event.pred_classes, landmarks, landmarks)
 
     cv2.imshow("Gesture AI", frame)
 
