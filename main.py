@@ -1,8 +1,20 @@
+from collections import deque, namedtuple
+from datetime import datetime, timedelta
+
 import cv2
 import mediapipe as mp
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import load_model
+
+from volume_utils import volume_handler
+
+GestureAction = namedtuple("GestureAction", "time handler pred_classes")
+
+
+action_queue: deque[GestureAction] = deque([])
+gesture_handlers = {"fist": volume_handler}
+GESTURE_TIMEOUT = 1500
 
 mp_hands = mp.solutions.hands
 hand_model = mp_hands.Hands(max_num_hands=2, min_detection_confidence=0.7)
@@ -12,7 +24,7 @@ gesture_model = load_model("model/mp_hand_gesture")
 classes = open("model/gesture.names", "r").read().split("\n")
 
 capture = cv2.VideoCapture(0)
-while True:
+while cv2.waitKey(1) != ord("q"):
     _, frame = capture.read()
 
     x, y, c = frame.shape
@@ -21,8 +33,6 @@ while True:
     framergb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
     result = hand_model.process(framergb)
-
-    pred_class = ""
 
     if result.multi_hand_landmarks:
         landmarks = []
@@ -33,19 +43,28 @@ while True:
 
                 landmarks.append([lmx, lmy])
 
-            # Drawing landmarks on frames
             mp_draw.draw_landmarks(frame, handslms, mp_hands.HAND_CONNECTIONS)
-
-            prediction = gesture_model.predict([landmarks])
+            prediction = gesture_model.predict([landmarks], verbose=0)
             pred_classes = []
             for preds in prediction:
                 pred_classes.append(classes[np.argmax(preds)])
-            print(pred_classes)
+
+            for req, handler in gesture_handlers.items():
+                if req in pred_classes:
+                    action_queue.append(
+                        GestureAction(datetime.now(), handler, pred_classes)
+                    )
+
+            while action_queue and (
+                (datetime.now() - action_queue[0].time) / timedelta(milliseconds=1)
+                > GESTURE_TIMEOUT
+            ):
+                cur_event = action_queue.popleft()
+                cur_event.handler(
+                    cur_event.pred_classes, landmarks[:21], landmarks[21:]
+                )
 
     cv2.imshow("Gesture AI", frame)
-
-    if cv2.waitKey(1) == ord("q"):
-        break
 
 capture.release()
 cv2.destroyAllWindows()
