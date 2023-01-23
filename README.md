@@ -14,7 +14,7 @@ Now, use `python3 -m venv env`, `source env/bin/activate`, and then `python3 mai
 
 Simply make your hand into a fist, and then use your the distance between your index finger and thumb to indicate how loud the system volume should be
 
-Demo: https://user-images.githubusercontent.com/22649594/214141807-c5a9a1aa-366d-425d-a307-ea68e5ea8ae3.mov
+<video src="https://user-images.githubusercontent.com/22649594/214141807-c5a9a1aa-366d-425d-a307-ea68e5ea8ae3.mov" width = 500 />
 
 ### Screen Capturing
 
