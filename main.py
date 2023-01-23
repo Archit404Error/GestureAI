@@ -8,13 +8,15 @@ import tensorflow as tf
 from tensorflow.keras.models import load_model
 
 from constants import GESTURE_TIMEOUT, HAND_POINTS
+from screenshot_utils import screenshot_handler
+from utils import draw_preds
 from volume_utils import volume_handler
 
 GestureAction = namedtuple("GestureAction", "time handler pred_classes")
 
 
 action_queue: deque[GestureAction] = deque([])
-gesture_handlers = {"fist": volume_handler}
+gesture_handlers = {"fist": volume_handler, "peace": screenshot_handler}
 last_gestures = []
 
 mp_hands = mp.solutions.hands
@@ -24,7 +26,7 @@ mp_draw = mp.solutions.drawing_utils
 gesture_model = load_model("model/mp_hand_gesture")
 classes = open("model/gesture.names", "r").read().split("\n")
 
-capture = cv2.VideoCapture(0)
+capture = cv2.VideoCapture(1)
 while cv2.waitKey(1) != ord("q"):
     _, frame = capture.read()
 
@@ -46,9 +48,8 @@ while cv2.waitKey(1) != ord("q"):
 
             mp_draw.draw_landmarks(frame, handslms, mp_hands.HAND_CONNECTIONS)
             prediction = gesture_model.predict([landmarks], verbose=0)
-            pred_classes = []
-            for preds in prediction:
-                pred_classes.append(classes[np.argmax(preds)])
+            pred_classes = [classes[np.argmax(preds)] for preds in prediction]
+            draw_preds(frame, pred_classes)
 
             for req, handler in gesture_handlers.items():
                 if req in pred_classes and req not in last_gestures:
