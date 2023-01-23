@@ -9,18 +9,21 @@ from tensorflow.keras.models import load_model
 
 from constants import CANCEL_GESTURE, EXEC_GESTURE, HAND_POINTS
 from screenshot_utils import screenshot_handler
-from utils import draw_preds, draw_queue
-from volume_utils import volume_handler
+from utils import draw_preds, draw_queue, split_landmarks
+from volume_utils import volume_between, volume_handler
 
 GestureAction = namedtuple("GestureAction", "req handler pred_classes")
 
 
 action_queue: deque[GestureAction] = deque()
 plaintext_queue = deque()
+# Actions carried out on execute (thumbs up)
 gesture_handlers = {
     "okay": (volume_handler, "volume"),
     "peace": (screenshot_handler, "screenshot"),
 }
+# Actions carried out after schedule and before execute
+middle_handlers = {"okay": volume_between}
 last_gestures = []
 
 mp_hands = mp.solutions.hands
@@ -62,24 +65,26 @@ while cv2.waitKey(1) != ord("q"):
                 action_queue.append(GestureAction(req, handler, pred_classes))
                 plaintext_queue.append(plaintext)
 
+        if action_queue and (cur_event := action_queue[0]).req in middle_handlers:
+            left, right = split_landmarks(landmarks)
+            middle_handlers[cur_event.req](
+                frame, action_queue[0].pred_classes, left, right, cur_event.req
+            )
+
         execute = EXEC_GESTURE in pred_classes and EXEC_GESTURE not in last_gestures
         remove = CANCEL_GESTURE in pred_classes and CANCEL_GESTURE not in last_gestures
 
         if action_queue and (execute or remove):
             cur_event = action_queue.popleft()
             plaintext_queue.popleft()
+            left, right = split_landmarks(landmarks)
             if execute:
-                if len(landmarks) == 2 * HAND_POINTS:
-                    cur_event.handler(
-                        cur_event.pred_classes,
-                        landmarks[:HAND_POINTS],
-                        landmarks[HAND_POINTS:],
-                        cur_event.req,
-                    )
-                else:
-                    cur_event.handler(
-                        cur_event.pred_classes, landmarks, landmarks, cur_event.req
-                    )
+                cur_event.handler(
+                    cur_event.pred_classes,
+                    left,
+                    right,
+                    cur_event.req,
+                )
 
         last_gestures = pred_classes
 

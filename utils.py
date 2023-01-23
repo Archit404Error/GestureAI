@@ -3,6 +3,8 @@ from subprocess import call
 
 import cv2
 
+from constants import HAND_POINTS
+
 
 def euclidean_dist(c1, c2):
     x1, y1 = c1
@@ -33,3 +35,9 @@ def draw_preds(frame, pred_classes):
 
 def draw_queue(frame, actions):
     draw_str(frame, str(list(actions)), (50, 100))
+
+
+def split_landmarks(landmarks):
+    if len(landmarks) == 2 * HAND_POINTS:
+        return landmarks[:HAND_POINTS], landmarks[HAND_POINTS:]
+    return landmarks, landmarks
