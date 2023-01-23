@@ -19,3 +19,6 @@ Simply make your hand into a fist, and then use your the distance between your i
 ### Screen Capturing
 
 Simply navigate to the page you want to screenshot and hold up a peace sign
+
+<video src="https://user-images.githubusercontent.com/22649594/214143513-18c98bde-da8f-448c-a63e-8c8a93f49176.mov" width = 500></video>
+
