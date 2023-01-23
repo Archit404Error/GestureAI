@@ -11,6 +11,6 @@ def volume_gesture(landmarks):
     set_volume(dist // 10)
 
 
-def volume_handler(preds, left, right):
-    landmarks = left if preds[0] == "fist" else right
+def volume_handler(preds, left, right, keyword):
+    landmarks = right if preds[0] == keyword else left
     volume_gesture(landmarks)

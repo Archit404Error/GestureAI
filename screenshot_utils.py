@@ -2,7 +2,7 @@ import os
 import os.path
 
 
-def screenshot_handler(preds, left, right):
+def screenshot_handler(preds, left, right, keyword):
     img_path = "./pics"
     if not os.path.exists(img_path):
         os.mkdir(img_path, 0o666)

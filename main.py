@@ -7,16 +7,20 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import load_model
 
-from constants import GESTURE_TIMEOUT, HAND_POINTS
+from constants import CANCEL_GESTURE, EXEC_GESTURE, HAND_POINTS
 from screenshot_utils import screenshot_handler
-from utils import draw_preds
+from utils import draw_preds, draw_queue
 from volume_utils import volume_handler
 
-GestureAction = namedtuple("GestureAction", "time handler pred_classes")
+GestureAction = namedtuple("GestureAction", "req handler pred_classes")
 
 
-action_queue: deque[GestureAction] = deque([])
-gesture_handlers = {"fist": volume_handler, "peace": screenshot_handler}
+action_queue: deque[GestureAction] = deque()
+plaintext_queue = deque()
+gesture_handlers = {
+    "okay": (volume_handler, "volume"),
+    "peace": (screenshot_handler, "screenshot"),
+}
 last_gestures = []
 
 mp_hands = mp.solutions.hands
@@ -47,31 +51,37 @@ while cv2.waitKey(1) != ord("q"):
                 landmarks.append([lmx, lmy])
 
             mp_draw.draw_landmarks(frame, handslms, mp_hands.HAND_CONNECTIONS)
-            prediction = gesture_model.predict([landmarks], verbose=0)
-            pred_classes = [classes[np.argmax(preds)] for preds in prediction]
-            draw_preds(frame, pred_classes)
+        prediction = gesture_model.predict([landmarks], verbose=0)
+        pred_classes = [classes[np.argmax(preds)] for preds in prediction]
 
-            for req, handler in gesture_handlers.items():
-                if req in pred_classes and req not in last_gestures:
-                    action_queue.append(
-                        GestureAction(datetime.now(), handler, pred_classes)
-                    )
+        draw_preds(frame, pred_classes)
+        draw_queue(frame, plaintext_queue)
 
-            last_gestures = pred_classes
+        for req, (handler, plaintext) in gesture_handlers.items():
+            if req in pred_classes and req not in last_gestures:
+                action_queue.append(GestureAction(req, handler, pred_classes))
+                plaintext_queue.append(plaintext)
 
-            while action_queue and (
-                (datetime.now() - action_queue[0].time) / timedelta(milliseconds=1)
-                > GESTURE_TIMEOUT
-            ):
-                cur_event = action_queue.popleft()
+        execute = EXEC_GESTURE in pred_classes and EXEC_GESTURE not in last_gestures
+        remove = CANCEL_GESTURE in pred_classes and CANCEL_GESTURE not in last_gestures
+
+        if action_queue and (execute or remove):
+            cur_event = action_queue.popleft()
+            plaintext_queue.popleft()
+            if execute:
                 if len(landmarks) == 2 * HAND_POINTS:
                     cur_event.handler(
                         cur_event.pred_classes,
                         landmarks[:HAND_POINTS],
                         landmarks[HAND_POINTS:],
+                        cur_event.req,
                     )
                 else:
-                    cur_event.handler(cur_event.pred_classes, landmarks, landmarks)
+                    cur_event.handler(
+                        cur_event.pred_classes, landmarks, landmarks, cur_event.req
+                    )
+
+        last_gestures = pred_classes
 
     cv2.imshow("Gesture AI", frame)
 
